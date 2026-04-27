@@ -1,0 +1,25 @@
+spring:
+  application:
+    name: employee-management
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/interviewdb
+    username: admin
+    password: admin123
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+server:
+  port: 8080
