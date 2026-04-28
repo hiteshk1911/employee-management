@@ -1,17 +1,16 @@
 package com.hitesh.employeemanagement.exception;
 
+import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.bind.MethodArgumentNotValidException;
-import jakarta.validation.ConstraintViolationException;
-import java.util.HashMap;
-import java.util.Map;
 
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
-import java.time.LocalDateTime;
 
 @ControllerAdvice
 public class GlobalExceptionHandler {
@@ -20,16 +19,20 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleResourceAlreadyExists(
             ResourceAlreadyExistsException ex) {
 
-        ErrorResponse errorResponse = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
-                .status(HttpStatus.CONFLICT.value())
-                .error(HttpStatus.CONFLICT.getReasonPhrase())
-                .message(ex.getMessage())
-                .build();
+        return buildErrorResponse(
+                HttpStatus.CONFLICT,
+                ex.getMessage()
+        );
+    }
 
-        return ResponseEntity
-                .status(HttpStatus.CONFLICT)
-                .body(errorResponse);
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleResourceNotFound(
+            ResourceNotFoundException ex) {
+
+        return buildErrorResponse(
+                HttpStatus.NOT_FOUND,
+                ex.getMessage()
+        );
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -61,38 +64,24 @@ public class GlobalExceptionHandler {
                 .body(response);
     }
 
-    @ExceptionHandler(ResourceNotFoundException.class)
-    public ResponseEntity<ErrorResponse> handleResourceNotFound(
-            ResourceNotFoundException ex) {
-
-        ErrorResponse errorResponse = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
-                .status(HttpStatus.NOT_FOUND.value())
-                .error(HttpStatus.NOT_FOUND.getReasonPhrase())
-                .message(ex.getMessage())
-                .build();
-
-        return ResponseEntity
-                .status(HttpStatus.NOT_FOUND)
-                .body(errorResponse);
-    }
-
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<ValidationErrorResponse> handleConstraintViolation(
             ConstraintViolationException ex) {
 
         Map<String, String> fieldErrors = new HashMap<>();
 
-        ex.getConstraintViolations().forEach(violation -> {
-            String field =
-                    violation.getPropertyPath()
-                            .toString();
+        ex.getConstraintViolations()
+                .forEach(violation -> {
 
-            fieldErrors.put(
-                    field,
-                    violation.getMessage()
-            );
-        });
+                    String field =
+                            violation.getPropertyPath()
+                                    .toString();
+
+                    fieldErrors.put(
+                            field,
+                            violation.getMessage()
+                    );
+                });
 
         ValidationErrorResponse response =
                 ValidationErrorResponse.builder()
@@ -112,15 +101,80 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleIllegalArgument(
             IllegalArgumentException ex) {
 
-        ErrorResponse response = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
-                .status(HttpStatus.BAD_REQUEST.value())
-                .error(HttpStatus.BAD_REQUEST.getReasonPhrase())
-                .message(ex.getMessage())
-                .build();
+        return buildErrorResponse(
+                HttpStatus.BAD_REQUEST,
+                ex.getMessage()
+        );
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ErrorResponse> handleAccessDenied(
+            AccessDeniedException ex) {
+
+        return buildErrorResponse(
+                HttpStatus.FORBIDDEN,
+                "Access denied"
+        );
+    }
+
+    @ExceptionHandler(RuntimeException.class)
+    public ResponseEntity<ErrorResponse> handleRuntimeException(
+            RuntimeException ex) {
+
+        String message = ex.getMessage();
+
+        if (message == null) {
+            message = "Unexpected error";
+        }
+
+        if (message.equalsIgnoreCase("Invalid credentials")) {
+
+            return buildErrorResponse(
+                    HttpStatus.UNAUTHORIZED,
+                    message
+            );
+        }
+
+        if (message.toLowerCase().contains("refresh token")
+                || message.toLowerCase().contains("revoked")
+                || message.toLowerCase().contains("expired")) {
+
+            return buildErrorResponse(
+                    HttpStatus.UNAUTHORIZED,
+                    message
+            );
+        }
+
+        return buildErrorResponse(
+                HttpStatus.BAD_REQUEST,
+                message
+        );
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ErrorResponse> handleGenericException(
+            Exception ex) {
+
+        return buildErrorResponse(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "Internal server error"
+        );
+    }
+
+    private ResponseEntity<ErrorResponse> buildErrorResponse(
+            HttpStatus status,
+            String message) {
+
+        ErrorResponse response =
+                ErrorResponse.builder()
+                        .timestamp(LocalDateTime.now())
+                        .status(status.value())
+                        .error(status.getReasonPhrase())
+                        .message(message)
+                        .build();
 
         return ResponseEntity
-                .badRequest()
+                .status(status)
                 .body(response);
     }
 }
